@@ -59,6 +59,7 @@ pub struct EventRegistration;
 #[allow(deprecated)]
 impl EventRegistration {
     pub fn init(env: Env, admin: Address) {
+        admin.require_auth();
         assert!(
             !env.storage().instance().has(&DataKey::Admin),
             "already initialized"

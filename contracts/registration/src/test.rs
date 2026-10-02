@@ -530,6 +530,19 @@ fn test_update_event_terms_not_organizer_fails() {
 }
 
 #[test]
+fn test_init_requires_admin_auth() {
+    let env = Env::default();
+
+    let contract_id = env.register(EventRegistration, ());
+    let client = EventRegistrationClient::new(&env, &contract_id);
+
+    let admin = Address::generate(&env);
+
+    let result = client.try_init(&admin);
+    assert!(result.is_err(), "init must require auth from admin");
+}
+
+#[test]
 fn test_pause_and_unpause() {
     let env = Env::default();
     env.mock_all_auths();
