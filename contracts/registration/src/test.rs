@@ -105,7 +105,7 @@ fn test_payout_moves_escrowed_funds_to_organizer() {
 }
 
 #[test]
-fn test_duplicate_registration_fails() {
+fn test_duplicate_registration_fails_without_double_charge() {
     let env = Env::default();
     env.mock_all_auths();
 
@@ -123,11 +123,22 @@ fn test_duplicate_registration_fails() {
     client.create_event(&organizer, &1, &prices, &100, &true, &0);
     client.register(&attendee, &1, &token.address);
 
+    assert_eq!(token.balance(&attendee), 800);
+    assert_eq!(token.balance(&contract_id), 200);
+
     let err = client
         .try_register(&attendee, &1, &token.address)
         .unwrap_err()
         .unwrap();
     assert_eq!(err, ContractError::AlreadyRegistered);
+
+    assert_eq!(token.balance(&attendee), 800);
+    assert_eq!(token.balance(&contract_id), 200);
+
+    env.as_contract(&contract_id, || {
+        let event: Event = env.storage().persistent().get(&DataKey::Event(1)).unwrap();
+        assert_eq!(event.registered, 1);
+    });
 }
 
 #[test]
