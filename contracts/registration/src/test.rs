@@ -142,6 +142,73 @@ fn test_duplicate_registration_fails_without_double_charge() {
 }
 
 #[test]
+fn test_capacity_zero_rejects_registration() {
+    let env = Env::default();
+    env.mock_all_auths();
+
+    let contract_id = env.register(EventRegistration, ());
+    let client = EventRegistrationClient::new(&env, &contract_id);
+
+    let organizer = Address::generate(&env);
+    let attendee = Address::generate(&env);
+    let token_admin = Address::generate(&env);
+    let (token, token_admin_client) = create_token_contract(&env, &token_admin);
+
+    token_admin_client.mint(&attendee, &1000);
+
+    let prices = create_token_prices(&env, &token.address, 200);
+    client.create_event(&organizer, &1, &prices, &0, &true, &0);
+
+    let err = client
+        .try_register(&attendee, &1, &token.address)
+        .unwrap_err()
+        .unwrap();
+    assert_eq!(err, ContractError::EventFull);
+
+    assert_eq!(token.balance(&attendee), 1000);
+    assert_eq!(token.balance(&contract_id), 0);
+}
+
+#[test]
+fn test_capacity_one_allows_one_registration_and_rejects_second() {
+    let env = Env::default();
+    env.mock_all_auths();
+
+    let contract_id = env.register(EventRegistration, ());
+    let client = EventRegistrationClient::new(&env, &contract_id);
+
+    let organizer = Address::generate(&env);
+    let attendee_a = Address::generate(&env);
+    let attendee_b = Address::generate(&env);
+    let token_admin = Address::generate(&env);
+    let (token, token_admin_client) = create_token_contract(&env, &token_admin);
+
+    token_admin_client.mint(&attendee_a, &1000);
+    token_admin_client.mint(&attendee_b, &1000);
+
+    let prices = create_token_prices(&env, &token.address, 200);
+    client.create_event(&organizer, &1, &prices, &1, &true, &0);
+
+    client.register(&attendee_a, &1, &token.address);
+    assert_eq!(token.balance(&attendee_a), 800);
+    assert_eq!(token.balance(&contract_id), 200);
+
+    env.as_contract(&contract_id, || {
+        let event: Event = env.storage().persistent().get(&DataKey::Event(1)).unwrap();
+        assert_eq!(event.registered, 1);
+    });
+
+    let err = client
+        .try_register(&attendee_b, &1, &token.address)
+        .unwrap_err()
+        .unwrap();
+    assert_eq!(err, ContractError::EventFull);
+
+    assert_eq!(token.balance(&attendee_b), 1000);
+    assert_eq!(token.balance(&contract_id), 200);
+}
+
+#[test]
 fn test_check_in_requires_registered_attendee() {
     let env = Env::default();
     env.mock_all_auths();
