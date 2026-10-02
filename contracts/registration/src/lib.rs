@@ -123,6 +123,13 @@ impl EventRegistration {
         Ok(())
     }
 
+    pub fn get_event(env: Env, event_id: u32) -> Event {
+        env.storage()
+            .persistent()
+            .get(&DataKey::Event(event_id))
+            .expect("event not found")
+    }
+
     pub fn update_event_terms(
         env: Env,
         organizer: Address,

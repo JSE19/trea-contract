@@ -1,5 +1,7 @@
 #![cfg(test)]
 
+extern crate std;
+
 use super::*;
 use soroban_sdk::testutils::{Address as _, Ledger};
 use soroban_sdk::token::{StellarAssetClient, TokenClient};
@@ -206,6 +208,44 @@ fn test_capacity_one_allows_one_registration_and_rejects_second() {
 
     assert_eq!(token.balance(&attendee_b), 1000);
     assert_eq!(token.balance(&contract_id), 200);
+}
+
+#[test]
+fn test_get_event_returns_stored_event() {
+    let env = Env::default();
+    env.mock_all_auths();
+
+    let contract_id = env.register(EventRegistration, ());
+    let client = EventRegistrationClient::new(&env, &contract_id);
+
+    let organizer = Address::generate(&env);
+    let token_admin = Address::generate(&env);
+    let (token, _) = create_token_contract(&env, &token_admin);
+
+    let prices = create_token_prices(&env, &token.address, 200);
+    client.create_event(&organizer, &42, &prices, &10, &true, &9_999_999_999);
+
+    let event = client.get_event(&42);
+    assert_eq!(event.organizer, organizer);
+    assert_eq!(event.capacity, 10);
+    assert_eq!(event.self_refund_allowed, true);
+    assert_eq!(event.refund_deadline, 9_999_999_999);
+    assert_eq!(event.registered, 0);
+}
+
+#[test]
+fn test_get_event_not_found_panics_with_clear_error() {
+    let env = Env::default();
+    env.mock_all_auths();
+
+    let contract_id = env.register(EventRegistration, ());
+    let client = EventRegistrationClient::new(&env, &contract_id);
+
+    let panic = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+        client.get_event(&999);
+    }));
+
+    assert!(panic.is_err(), "missing event should panic");
 }
 
 #[test]
