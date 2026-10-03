@@ -59,6 +59,7 @@ pub struct EventRegistration;
 #[allow(deprecated)]
 impl EventRegistration {
     pub fn init(env: Env, admin: Address) {
+        admin.require_auth();
         assert!(
             !env.storage().instance().has(&DataKey::Admin),
             "already initialized"
@@ -120,6 +121,13 @@ impl EventRegistration {
         env.events()
             .publish((Symbol::new(&env, "create_event"), event_id), organizer);
         Ok(())
+    }
+
+    pub fn get_event(env: Env, event_id: u32) -> Event {
+        env.storage()
+            .persistent()
+            .get(&DataKey::Event(event_id))
+            .expect("event not found")
     }
 
     pub fn update_event_terms(
