@@ -46,7 +46,7 @@ Contract: `EventRegistration` — `contracts/registration/src/lib.rs`
 | `create_event(organizer, event_id, price, token, capacity, self_refund_allowed, refund_deadline)` | organizer | Registers a new event. `price = 0` marks it free. `refund_deadline = 0` means no deadline on self-refunds. |
 | `register(attendee, event_id)` | attendee | Registers for an event. If `price > 0`, transfers payment from the attendee into contract escrow. |
 | `refund(caller, event_id, attendee)` | attendee or organizer | Refunds an attendee from escrow. Self-refund requires `self_refund_allowed` and (if set) must be before `refund_deadline`. Organizer can always refund. |
-| `check_in(organizer, event_id, attendee)` | organizer | Marks an attendee as checked in. |
+| `check_in(organizer, event_id, attendee)` | organizer | Marks a registered attendee as checked in; walk-ins are rejected. |
 | `payout(organizer, event_id)` | organizer | Withdraws the event's escrowed balance to the organizer. |
 
 ## Getting started

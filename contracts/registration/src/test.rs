@@ -310,7 +310,7 @@ fn test_get_event_not_found_panics_with_clear_error() {
 }
 
 #[test]
-fn test_check_in_requires_registered_attendee() {
+fn test_check_in_rejects_unregistered_attendee() {
     let env = Env::default();
     env.mock_all_auths();
 
