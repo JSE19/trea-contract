@@ -44,7 +44,9 @@ All state-changing calls require on-chain authorization (`require_auth()`) from 
 Contract: `EventRegistration` — `contracts/registration/src/lib.rs`
 
 See [docs/resource-usage.md](./docs/resource-usage.md) for storage operation
-counts and the optimized duplicate check-in path.
+counts and the optimized duplicate check-in path. See
+[docs/architecture.md](./docs/architecture.md) for the storage-key structure
+proposal and compatibility considerations.
 
 | Function | Caller | Description |
 |---|---|---|
