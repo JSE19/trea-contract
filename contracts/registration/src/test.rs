@@ -6,6 +6,7 @@ use super::*;
 use soroban_sdk::testutils::{Address as _, Ledger};
 use soroban_sdk::token::{StellarAssetClient, TokenClient};
 use soroban_sdk::Map;
+use std::vec::Vec;
 
 fn create_token_contract<'a>(
     env: &Env,
@@ -23,6 +24,131 @@ fn create_token_prices(env: &Env, token: &Address, price: i128) -> Map<Address, 
     let mut map = Map::new(env);
     map.set(token.clone(), price);
     map
+}
+
+fn next_random(state: &mut u64) -> u64 {
+    *state ^= *state << 13;
+    *state ^= *state >> 7;
+    *state ^= *state << 17;
+    *state
+}
+
+#[test]
+fn test_randomized_registration_refund_invariants() {
+    const CAPACITY: usize = 5;
+    const ATTENDEE_COUNT: usize = 8;
+    const STEPS_PER_SEED: usize = 64;
+    const SEEDS: [u64; 4] = [0x5eed_0001, 0x5eed_0002, 0x5eed_0003, 0x5eed_0004];
+
+    for seed in SEEDS {
+        let env = Env::default();
+        env.mock_all_auths();
+
+        let contract_id = env.register(EventRegistration, ());
+        let client = EventRegistrationClient::new(&env, &contract_id);
+        let organizer = Address::generate(&env);
+        let token_admin = Address::generate(&env);
+        let (token_a, token_a_admin) = create_token_contract(&env, &token_admin);
+        let (token_b, token_b_admin) = create_token_contract(&env, &token_admin);
+        let attendees: Vec<Address> = (0..ATTENDEE_COUNT)
+            .map(|_| Address::generate(&env))
+            .collect();
+        let mut active = [false; ATTENDEE_COUNT];
+        let mut random_state = seed;
+        let mut register_calls = 0;
+        let mut refund_calls = 0;
+
+        for (index, attendee) in attendees.iter().enumerate() {
+            if index % 2 == 0 {
+                token_a_admin.mint(attendee, &10_000);
+            } else {
+                token_b_admin.mint(attendee, &10_000);
+            }
+        }
+
+        let mut prices = create_token_prices(&env, &token_a.address, 100);
+        prices.set(token_b.address.clone(), 175);
+        client.create_event(&organizer, &1, &prices, &(CAPACITY as u32), &true, &0);
+
+        for step in 0..STEPS_PER_SEED {
+            let active_count = active.iter().filter(|is_active| **is_active).count();
+            let inactive_indices: Vec<usize> = (0..ATTENDEE_COUNT)
+                .filter(|index| !active[*index])
+                .collect();
+            let active_indices: Vec<usize> =
+                (0..ATTENDEE_COUNT).filter(|index| active[*index]).collect();
+            let can_register = active_count < CAPACITY && !inactive_indices.is_empty();
+            let can_refund = !active_indices.is_empty();
+
+            let do_register = match (can_register, can_refund) {
+                (true, true) => next_random(&mut random_state) % 2 == 0,
+                (true, false) => true,
+                (false, true) => false,
+                (false, false) => continue,
+            };
+
+            if do_register {
+                let index = inactive_indices
+                    [next_random(&mut random_state) as usize % inactive_indices.len()];
+                let attendee = &attendees[index];
+                let payment_token = if index % 2 == 0 {
+                    &token_a.address
+                } else {
+                    &token_b.address
+                };
+                client.register(attendee, &1, payment_token);
+                active[index] = true;
+                register_calls += 1;
+            } else {
+                let index =
+                    active_indices[next_random(&mut random_state) as usize % active_indices.len()];
+                let attendee = &attendees[index];
+                client.refund(attendee, &1, attendee);
+                active[index] = false;
+                refund_calls += 1;
+            }
+
+            let event = client.get_event(&1);
+            let model_count = active.iter().filter(|is_active| **is_active).count();
+            assert_eq!(
+                event.registered, model_count as u32,
+                "registered count mismatch for seed {seed:#x} at step {step}"
+            );
+            assert!(
+                event.registered <= CAPACITY as u32,
+                "capacity exceeded for seed {seed:#x} at step {step}"
+            );
+
+            let expected_token_a = active
+                .iter()
+                .enumerate()
+                .filter(|(index, is_active)| **is_active && index % 2 == 0)
+                .count() as i128
+                * 100;
+            let expected_token_b = active
+                .iter()
+                .enumerate()
+                .filter(|(index, is_active)| **is_active && index % 2 == 1)
+                .count() as i128
+                * 175;
+            assert_eq!(
+                token_a.balance(&contract_id),
+                expected_token_a,
+                "token A escrow mismatch for seed {seed:#x} at step {step}"
+            );
+            assert_eq!(
+                token_b.balance(&contract_id),
+                expected_token_b,
+                "token B escrow mismatch for seed {seed:#x} at step {step}"
+            );
+        }
+
+        assert!(
+            register_calls > 0,
+            "seed {seed:#x} generated no registrations"
+        );
+        assert!(refund_calls > 0, "seed {seed:#x} generated no refunds");
+    }
 }
 
 #[test]
