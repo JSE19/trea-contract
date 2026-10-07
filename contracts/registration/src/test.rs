@@ -137,6 +137,37 @@ fn test_payout_moves_escrowed_funds_to_organizer() {
 }
 
 #[test]
+fn test_payout_succeeds_with_zero_escrow_after_refund() {
+    let env = Env::default();
+    env.mock_all_auths();
+
+    let contract_id = env.register(EventRegistration, ());
+    let client = EventRegistrationClient::new(&env, &contract_id);
+
+    let organizer = Address::generate(&env);
+    let attendee = Address::generate(&env);
+    let token_admin = Address::generate(&env);
+    let (token, token_admin_client) = create_token_contract(&env, &token_admin);
+
+    token_admin_client.mint(&attendee, &1000);
+
+    let prices = create_token_prices(&env, &token.address, 200);
+    client.create_event(&organizer, &1, &prices, &100, &true, &0);
+    client.register(&attendee, &1, &token.address);
+    client.refund(&attendee, &1, &attendee);
+
+    assert_eq!(token.balance(&contract_id), 0);
+    assert_eq!(token.balance(&attendee), 1000);
+    assert_eq!(token.balance(&organizer), 0);
+
+    client.payout(&organizer, &1);
+
+    assert_eq!(token.balance(&contract_id), 0);
+    assert_eq!(token.balance(&attendee), 1000);
+    assert_eq!(token.balance(&organizer), 0);
+}
+
+#[test]
 fn test_duplicate_registration_fails_without_double_charge() {
     let env = Env::default();
     env.mock_all_auths();
