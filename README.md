@@ -33,6 +33,8 @@ All state-changing calls require on-chain authorization (`require_auth()`) from 
 │       │   └── test.rs     # unit tests
 │       ├── Cargo.toml
 │       └── Makefile
+├── scripts/
+│   └── local-network-e2e.ps1
 ├── Cargo.toml               # Rust workspace root
 └── README.md
 ```
@@ -66,6 +68,33 @@ stellar contract build  # build the .wasm artifact
 ```
 
 The built contract is output to `target/wasm32v1-none/release/registration.wasm`.
+
+### Local network end-to-end test
+
+The unit tests use Soroban's in-memory `Env`. To exercise deployment and real CLI
+transactions against a local Stellar network, use the PowerShell script:
+
+```powershell
+.\scripts\local-network-e2e.ps1
+```
+
+Prerequisites:
+
+- Stellar CLI 26 or newer (`stellar --version`)
+- Rust and the `wasm32v1-none` target (see prerequisites above)
+- Docker running, with host port `8000` available
+- PowerShell 5.1 or newer
+
+The script starts a named local Stellar container, creates temporary CLI
+configuration and funded organizer/attendee identities, builds and deploys the
+registration contract and native asset contract, then invokes `create_event`,
+`register`, and `refund` through the CLI. The event charges one XLM and allows
+self-refunds, so the flow exercises escrow transfers. It stops the container
+that it started and removes the temporary CLI configuration when finished.
+
+The script does not modify your normal Stellar CLI configuration or identities.
+If it exits before completing, inspect the CLI error; the container is stopped
+and temporary configuration is removed in either case.
 
 ### Deploy to Testnet
 
