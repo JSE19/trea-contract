@@ -192,6 +192,9 @@ impl EventRegistration {
         Ok(())
     }
 
+    // check_in is intentionally idempotent: repeated check-ins for the same attendee
+    // are treated as a successful no-op so retrying the organizer action or handling
+    // duplicate client requests does not fail the check-in flow.
     pub fn check_in(
         env: Env,
         organizer: Address,
@@ -212,6 +215,13 @@ impl EventRegistration {
         }
         if !env.storage().persistent().has(&DataKey::Registered(event_id, attendee.clone())) {
             return Err(ContractError::NotRegistered);
+        }
+        if env
+            .storage()
+            .persistent()
+            .has(&DataKey::CheckedIn(event_id, attendee.clone()))
+        {
+            return Ok(());
         }
 
         env.storage()

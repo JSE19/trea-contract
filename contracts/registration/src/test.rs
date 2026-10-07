@@ -55,6 +55,36 @@ fn test_free_event_register_and_checkin() {
 }
 
 #[test]
+fn test_check_in_is_idempotent() {
+    let env = Env::default();
+    env.mock_all_auths();
+
+    let contract_id = env.register(EventRegistration, ());
+    let client = EventRegistrationClient::new(&env, &contract_id);
+
+    let organizer = Address::generate(&env);
+    let attendee = Address::generate(&env);
+    let token_admin = Address::generate(&env);
+    let (token, _) = create_token_contract(&env, &token_admin);
+
+    let prices = create_token_prices(&env, &token.address, 0);
+
+    client.create_event(&organizer, &1, &prices, &100, &false, &0);
+    client.register(&attendee, &1, &token.address);
+
+    client.check_in(&organizer, &1, &attendee);
+    client.check_in(&organizer, &1, &attendee);
+
+    let checked_in: bool = env.as_contract(&contract_id, || {
+        env.storage()
+            .persistent()
+            .get(&DataKey::CheckedIn(1, attendee.clone()))
+            .unwrap()
+    });
+    assert!(checked_in);
+}
+
+#[test]
 fn test_paid_event_register_transfers_payment() {
     let env = Env::default();
     env.mock_all_auths();
