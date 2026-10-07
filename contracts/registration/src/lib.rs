@@ -212,15 +212,21 @@ impl EventRegistration {
         if !caller_is_organizer(&event, &organizer) {
             return Err(ContractError::NotOrganizer);
         }
-        if !env.storage().persistent().has(&DataKey::Registered(event_id, attendee.clone())) {
-            return Err(ContractError::NotRegistered);
-        }
+        // Refund and transfer remove both registration and check-in records, so an
+        // existing check-in record proves the attendee is still registered.
         if env
             .storage()
             .persistent()
             .has(&DataKey::CheckedIn(event_id, attendee.clone()))
         {
             return Ok(());
+        }
+        if !env
+            .storage()
+            .persistent()
+            .has(&DataKey::Registered(event_id, attendee.clone()))
+        {
+            return Err(ContractError::NotRegistered);
         }
 
         env.storage()

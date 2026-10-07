@@ -43,6 +43,9 @@ All state-changing calls require on-chain authorization (`require_auth()`) from 
 
 Contract: `EventRegistration` — `contracts/registration/src/lib.rs`
 
+See [docs/resource-usage.md](./docs/resource-usage.md) for storage operation
+counts and the optimized duplicate check-in path.
+
 | Function | Caller | Description |
 |---|---|---|
 | `create_event(organizer, event_id, price, token, capacity, self_refund_allowed, refund_deadline)` | organizer | Registers a new event. `price = 0` marks it free. `refund_deadline = 0` means no deadline on self-refunds. |

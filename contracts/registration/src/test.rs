@@ -211,6 +211,46 @@ fn test_check_in_is_idempotent() {
 }
 
 #[test]
+fn test_refund_and_transfer_clear_check_in_state() {
+    let env = Env::default();
+    env.mock_all_auths();
+
+    let contract_id = env.register(EventRegistration, ());
+    let client = EventRegistrationClient::new(&env, &contract_id);
+
+    let organizer = Address::generate(&env);
+    let refunded_attendee = Address::generate(&env);
+    let transfer_from = Address::generate(&env);
+    let transfer_to = Address::generate(&env);
+    let token_admin = Address::generate(&env);
+    let (token, _) = create_token_contract(&env, &token_admin);
+
+    let prices = create_token_prices(&env, &token.address, 0);
+    client.create_event(&organizer, &1, &prices, &10, &true, &0);
+
+    client.register(&refunded_attendee, &1, &token.address);
+    client.check_in(&organizer, &1, &refunded_attendee);
+    client.refund(&refunded_attendee, &1, &refunded_attendee);
+
+    let refund_check_in_error = client
+        .try_check_in(&organizer, &1, &refunded_attendee)
+        .unwrap_err()
+        .unwrap();
+    assert_eq!(refund_check_in_error, ContractError::NotRegistered);
+
+    client.register(&transfer_from, &1, &token.address);
+    client.check_in(&organizer, &1, &transfer_from);
+    client.transfer_registration(&transfer_from, &1, &transfer_to);
+
+    let transfer_check_in_error = client
+        .try_check_in(&organizer, &1, &transfer_from)
+        .unwrap_err()
+        .unwrap();
+    assert_eq!(transfer_check_in_error, ContractError::NotRegistered);
+    client.check_in(&organizer, &1, &transfer_to);
+}
+
+#[test]
 fn test_paid_event_register_transfers_payment() {
     let env = Env::default();
     env.mock_all_auths();
