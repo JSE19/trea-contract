@@ -327,6 +327,37 @@ fn test_self_refund_before_deadline_succeeds() {
 }
 
 #[test]
+fn test_refunding_twice_panics_without_double_payment() {
+    let env = Env::default();
+    env.mock_all_auths();
+
+    let contract_id = env.register(EventRegistration, ());
+    let client = EventRegistrationClient::new(&env, &contract_id);
+
+    let organizer = Address::generate(&env);
+    let attendee = Address::generate(&env);
+    let token_admin = Address::generate(&env);
+    let (token, token_admin_client) = create_token_contract(&env, &token_admin);
+
+    token_admin_client.mint(&attendee, &1000);
+
+    let prices = create_token_prices(&env, &token.address, 200);
+    client.create_event(&organizer, &1, &prices, &100, &true, &0);
+    client.register(&attendee, &1, &token.address);
+    assert_eq!(token.balance(&attendee), 800);
+
+    client.refund(&attendee, &1, &attendee);
+    assert_eq!(token.balance(&attendee), 1000);
+
+    let second_refund = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+        client.refund(&attendee, &1, &attendee);
+    }));
+
+    assert!(second_refund.is_err(), "a second refund should panic");
+    assert_eq!(token.balance(&attendee), 1000);
+}
+
+#[test]
 fn test_stranger_cannot_refund() {
     let env = Env::default();
     env.mock_all_auths();
